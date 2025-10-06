@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>田字格练习工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", sans-serif; background-color: #f5f5f5; }
+        .container { display: flex; min-height: 100vh; }
+        .preview-area { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
+        .control-panel { width: 320px; padding: 20px; background-color: white; border-left: 1px solid #ddd; overflow-y: auto; }
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select, input[type="color"], input[type="number"] { 
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; 
+        }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        canvas { border: 1px solid #ddd; background-color: white; margin-bottom: 10px; }
+        .grid-info { text-align: right; font-size: 14px; color: #666; margin-top: 5px; }
+        .page-container { 
+            margin-bottom: 20px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .page-label {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+        }
+        .checkbox-container input {
+            margin-right: 8px;
+            width: auto;
+        }
+        .radio-container {
+            display: flex;
+            flex-direction: column;
+            margin-top: 5px;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .radio-option input {
+            margin-right: 8px;
+            width: auto;
+        }
+        
+        /* 字体选择器样式 */
+        .font-selector {
+            position: relative;
+        }
+        .font-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .font-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            z-index: 100;
+            display: none;
+        }
+        .font-dropdown.active {
+            display: block;
+        }
+        .font-option {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .font-option:hover {
+            background-color: #f5f5f5;
+        }
+        .font-option.selected {
+            background-color: #e6f7ff;
+            font-weight: bold;
+        }
+        .font-search {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            outline: none;
+        }
+        
+        /* 打印样式 */
+        @media print {
+            body { margin: 0; }
+            .container { display: block; }
+            .control-panel { display: none; }
+            .preview-area { padding: 0; }
+            .page-container { 
+                page-break-after: always;
+                margin-bottom: 0;
+            }
+            .page-container:last-child { 
+                page-break-after: auto;
+            }
+            .page-label { display: none; }
+            
+            /* 确保高分辨率图像在打印时保持高质量 */
+            canvas {
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
+                max-width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 预览区域 -->
+        <div class="preview-area">
+            <div id="pagesContainer">
+                <!-- 页面将通过JavaScript动态生成 -->
+            </div>
+        </div>
+        
+        <!-- 控制面板 -->
+        <div class="control-panel">
+            <h2 style="margin-bottom: 20px;">田字格设置</h2>
+            
+            <div class="control-group">
+                <label for="textInput">输入文字：</label>
+                <input type="text" id="textInput" placeholder="请输入要练习的文字">
+            </div>
+            
+            <div class="control-group">
+                <label>显示模式：</label>
+                <div class="radio-container">
+                    <div class="radio-option">
+                        <input type="radio" id="normalMode" name="displayMode" value="normal" checked>
+                        <label for="normalMode">普通模式</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="spaceMode" name="displayMode" value="space">
+                        <label for="spaceMode">空格模式（字符间留空格）</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="emptyLineMode" name="displayMode" value="emptyLine">
+                        <label for="emptyLineMode">空行模式（行间留空行）</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="rowInput">行数：</label>
+                <input type="number" id="rowInput" value="15" min="1" max="30">
+            </div>
+            
+            <div class="control-group">
+                <label for="colInput">列数：</label>
+                <input type="number" id="colInput" value="11" min="1" max="30">
+            </div>
+            
+            <div class="control-group">
+                <label for="fontSelect">选择字体：</label>
+                <div class="font-selector">
+                    <input type="text" id="fontInput" class="font-input" placeholder="点击选择或搜索字体" readonly>
+                    <div id="fontDropdown" class="font-dropdown">
+                        <input type="text" id="fontSearch" class="font-search" placeholder="搜索字体...">
+                        <div id="fontOptions"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="colorPicker">文字颜色：</label>
+                <input type="color" id="colorPicker" value="#000000">
+            </div>
+            
+            <div class="control-group">
+                <label for="fontSize">字体大小：</label>
+                <input type="number" id="fontSize" value="30" min="10" max="60">
+            </div>
+            
+            <div class="control-group">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="showGuideLines" checked>
+                    <label for="showGuideLines">显示田字格虚线</label>
+                </div>
+            </div>
+            
+            <button id="printBtn">打印田字格</button>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        const cellSize = 68; // 每格像素大小（1.8cm ≈ 68px）
+        const printDPI = 300; // 打印分辨率
+        const screenDPI = 96; // 屏幕分辨率
+        const dpiRatio = printDPI / screenDPI; // 分辨率比例
+        let rows = 15;       // 默认行数
+        let cols = 11;       // 默认列数
+        let pages = [];      // 存储所有页面数据
+        let availableFonts = []; // 存储可用字体
+        let selectedFont = "SimSun"; // 当前选中的字体
+        
+        // 初始化
+        function init() {
+            // 绑定事件监听器
+            bindEventListeners();
+            
+            // 初始化页面
+            updatePages();
+            
+            // 加载系统字体
+            setTimeout(loadSystemFonts, 500);
+        }
+        
+        // 绑定事件监听器
+        function bindEventListeners() {
+            document.getElementById('textInput').addEventListener('input', updatePages);
+            document.getElementById('normalMode').addEventListener('change', updatePages);
+            document.getElementById('spaceMode').addEventListener('change', updatePages);
+            document.getElementById('emptyLineMode').addEventListener('change', updatePages);
+            document.getElementById('colorPicker').addEventListener('change', updatePages);
+            document.getElementById('fontSize').addEventListener('input', updatePages);
+            document.getElementById('showGuideLines').addEventListener('change', updatePages);
+            
+            document.getElementById('rowInput').addEventListener('input', function(e) {
+                const newRows = parseInt(e.target.value) || 15;
+                if (newRows !== rows && newRows >= 1 && newRows <= 30) {
+                    rows = newRows;
+                    updatePages();
+                }
+            });
+            
+            document.getElementById('colInput').addEventListener('input', function(e) {
+                const newCols = parseInt(e.target.value) || 11;
+                if (newCols !== cols && newCols >= 1 && newCols <= 30) {
+                    cols = newCols;
+                    updatePages();
+                }
+            });
+            
+            document.getElementById('printBtn').addEventListener('click', printPages);
+            
+            // 字体选择器事件
+            const fontInput = document.getElementById('fontInput');
+            const fontDropdown = document.getElementById('fontDropdown');
+            const fontSearch = document.getElementById('fontSearch');
+            
+            // 点击输入框显示下拉列表
+            fontInput.addEventListener('click', function() {
+                fontDropdown.classList.toggle('active');
+                if (fontDropdown.classList.contains('active')) {
+                    fontSearch.focus();
+                }
+            });
+            
+            // 点击其他地方关闭下拉列表
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.font-selector')) {
+                    fontDropdown.classList.remove('active');
+                }
+            });
+            
+            // 搜索字体
+            fontSearch.addEventListener('input', function() {
+                filterFonts(this.value);
+            });
+        }
+        
+        // 获取当前显示模式
+        function getDisplayMode() {
+            const modes = document.getElementsByName('displayMode');
+            for (let i = 0; i < modes.length; i++) {
+                if (modes[i].checked) {
+                    return modes[i].value;
+                }
+            }
+            return 'normal'; // 默认为普通模式
+        }
+        
+        // 计算每页可容纳的字符数
+        function getCharsPerPage(displayMode) {
+            const totalCells = rows * cols;
+            
+            if (displayMode === 'normal') {
+                // 普通模式：每个格子放一个字符
+                return totalCells;
+            } else if (displayMode === 'space') {
+                // 空格模式：每两个格子放一个字符（一个字符，一个空格）
+                return Math.floor(totalCells / 2);
+            } else if (displayMode === 'emptyLine') {
+                // 空行模式：每隔一行留空
+                const usableRows = Math.ceil(rows / 2);
+                return usableRows * cols;
+            }
+            
+            return totalCells;
+        }
+        
+        // 更新页面
+        function updatePages() {
+            const text = document.getElementById('textInput').value;
+            const displayMode = getDisplayMode();
+            
+            // 如果没有文本，创建一个空白页
+            if (!text) {
+                pages = [{
+                    text: '',
+                    displayMode: displayMode,
+                    canvas: null,
+                    ctx: null
+                }];
+                renderPreview();
+                return;
+            }
+            
+            // 计算每页可容纳的字符数
+            const charsPerPage = getCharsPerPage(displayMode);
+            
+            // 计算需要的页面数
+            const textLength = text.length;
+            const pageCount = Math.ceil(textLength / charsPerPage);
+            
+            // 清空页面数组
+            pages = [];
+            
+            // 为每个页面创建数据
+            for (let i = 0; i < pageCount; i++) {
+                const startIndex = i * charsPerPage;
+                const endIndex = Math.min(startIndex + charsPerPage, textLength);
+                
+                // 提取当前页面的文本
+                const pageText = text.substring(startIndex, endIndex);
+                
+                pages.push({
+                    text: pageText,
+                    displayMode: displayMode,
+                    canvas: null,
+                    ctx: null
+                });
+            }
+            
+            // 渲染预览
+            renderPreview();
+        }
+        
+        // 渲染预览
+        function renderPreview() {
+            const pagesContainer = document.getElementById('pagesContainer');
+            pagesContainer.innerHTML = '';
+            
+            pages.forEach((page, index) => {
+                // 创建页面容器
+                const pageContainer = document.createElement('div');
+                pageContainer.className = 'page-container';
+                
+                // 创建页面标签
+                const pageLabel = document.createElement('div');
+                pageLabel.className = 'page-label';
+                pageLabel.textContent = `第 ${index + 1} 页`;
+                pageContainer.appendChild(pageLabel);
+                
+                // 创建画布
+                const canvas = document.createElement('canvas');
+                canvas.id = `gridCanvas${index}`;
+                
+                // 计算高分辨率下的画布尺寸
+                const highResWidth = cols * cellSize * dpiRatio;
+                const highResHeight = rows * cellSize * dpiRatio;
+                
+                // 设置画布的实际尺寸（高分辨率）
+                canvas.width = highResWidth;
+                canvas.height = highResHeight;
+                
+                // 设置画布的显示尺寸（保持原来的物理大小）
+                canvas.style.width = cols * cellSize + 'px';
+                canvas.style.height = rows * cellSize + 'px';
+                
+                pageContainer.appendChild(canvas);
+                
+                // 创建网格信息
+                const gridInfo = document.createElement('div');
+                gridInfo.className = 'grid-info';
+                gridInfo.textContent = `1.8cm × ${cols}×${rows}格`;
+                pageContainer.appendChild(gridInfo);
+                
+                // 添加到页面容器
+                pagesContainer.appendChild(pageContainer);
+                
+                // 保存画布引用
+                page.canvas = canvas;
+                page.ctx = canvas.getContext('2d');
+                
+                // 绘制田字格和文字
+                drawGrid(page.ctx);
+                drawText(page.ctx, page.text, page.displayMode);
+            });
+        }
+        
+        // 绘制田字格
+        function drawGrid(context) {
+            // 保存当前状态
+            context.save();
+            
+            // 清空画布
+            context.clearRect(0, 0, cols * cellSize * dpiRatio, rows * cellSize * dpiRatio);
+            
+            // 缩放绘图上下文以适应高分辨率
+            context.scale(dpiRatio, dpiRatio);
+            
+            // 绘制外边框
+            context.strokeStyle = '#000000';
+            context.lineWidth = 2;
+            context.strokeRect(0, 0, cols * cellSize, rows * cellSize);
+            
+            // 绘制网格线
+            context.strokeStyle = '#cccccc';
+            context.lineWidth = 1;
+            
+            // 绘制竖线
+            for (let i = 1; i < cols; i++) {
+                const x = i * cellSize;
+                context.beginPath();
+                context.moveTo(x, 0);
+                context.lineTo(x, rows * cellSize);
+                context.stroke();
+            }
+            
+            // 绘制横线
+            for (let j = 1; j < rows; j++) {
+                const y = j * cellSize;
+                context.beginPath();
+                context.moveTo(0, y);
+                context.lineTo(cols * cellSize, y);
+                context.stroke();
+            }
+            
+            // 绘制田字格虚线
+            if (document.getElementById('showGuideLines').checked) {
+                context.strokeStyle = '#999999';
+                context.lineWidth = 0.5;
+                context.setLineDash([5, 5]); // 设置虚线样式
+                
+                for (let i = 0; i < cols; i++) {
+                    for (let j = 0; j < rows; j++) {
+                        const x = i * cellSize;
+                        const y = j * cellSize;
+                        
+                        // 绘制十字虚线（田字格）
+                        context.beginPath();
+                        context.moveTo(x + cellSize / 2, y);
+                        context.lineTo(x + cellSize / 2, y + cellSize);
+                        context.stroke();
+                        
+                        context.beginPath();
+                        context.moveTo(x, y + cellSize / 2);
+                        context.lineTo(x + cellSize, y + cellSize / 2);
+                        context.stroke();
+                    }
+                }
+                
+                // 重置虚线样式
+                context.setLineDash([]);
+            }
+            
+            // 恢复状态
+            context.restore();
+        }
+        
+        // 绘制文字
+        function drawText(context, text, displayMode) {
+            const color = document.getElementById('colorPicker').value;
+            const fontSize = document.getElementById('fontSize').value;
+            
+            // 保存当前状态
+            context.save();
+            
+            // 缩放绘图上下文以适应高分辨率
+            context.scale(dpiRatio, dpiRatio);
+            
+            context.fillStyle = color;
+            context.font = `${fontSize}px ${selectedFont}`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            let charIndex = 0;
+            
+            if (displayMode === 'space') {
+                // 空格模式：每两个格子放一个字符
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col += 2) { // 每两列
+                        if (charIndex >= text.length) return;
+                        
+                        const char = text[charIndex];
+                        const x = col * cellSize + cellSize; // 中间位置
+                        const y = row * cellSize + cellSize / 2;
+                        
+                        context.fillText(char, x, y);
+                        charIndex++;
+                    }
+                }
+            } else if (displayMode === 'emptyLine') {
+                // 空行模式：每隔一行留空
+                for (let row = 0; row < rows; row += 2) { // 每隔一行
+                    for (let col = 0; col < cols; col++) {
+                        if (charIndex >= text.length) return;
+                        
+                        const char = text[charIndex];
+                        const x = col * cellSize + cellSize / 2;
+                        const y = row * cellSize + cellSize / 2;
+                        
+                        context.fillText(char, x, y);
+                        charIndex++;
+                    }
+                }
+            } else {
+                // 普通模式：每个格子放一个字符
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        if (charIndex >= text.length) return;
+                        
+                        const char = text[charIndex];
+                        const x = col * cellSize + cellSize / 2;
+                        const y = row * cellSize + cellSize / 2;
+                        
+                        context.fillText(char, x, y);
+                        charIndex++;
+                    }
+                }
+            }
+            
+            // 恢复状态
+            context.restore();
+        }
+        
+        // 打印页面
+        function printPages() {
+            // 触发打印对话框
+            window.print();
+        }
+        
+        // 检测字体是否可用
+        function isFontAvailable(fontFamily) {
+            // 创建测试画布
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const text = 'abcdefghijklmnopqrstuvwxyz0123456789田字格测试';
+            
+            // 测试宽度
+            context.font = '72px monospace';
+            const baselineWidth = context.measureText(text).width;
+            
+            // 测试目标字体
+            context.font = `72px '${fontFamily}', monospace`;
+            const targetWidth = context.measureText(text).width;
+            
+            // 如果宽度不同，说明字体可用
+            return baselineWidth !== targetWidth;
+        }
+        
+        // 获取系统字体
+        function getSystemFonts() {
+            // 常见的中文字体
+            const chineseFonts = [
+                "方正行楷_GBK", "宋体", "SimSun", "新宋体", "NSimSun",
+                "黑体", "SimHei", "微软雅黑", "Microsoft YaHei", "微软正黑体", "Microsoft JhengHei",
+                "楷体", "KaiTi", "楷体_GB2312", "KaiTi_GB2312",
+                "仿宋", "FangSong", "仿宋_GB2312", "FangSong_GB2312",
+                "隶书", "LiSu", "华文隶书", "STLiti",
+                "幼圆", "YouYuan", "华文细黑", "STXihei",
+                "华文楷体", "STKaiti", "华文宋体", "STSong",
+                "华文中宋", "STZhongsong", "华文仿宋", "STFangsong",
+                "华文彩云", "STCaiyun", "华文琥珀", "STHupo",
+                "华文行楷", "STXingkai", "华文新魏", "STXinwei",
+                "方正舒体", "FZShuTi", "方正姚体", "FZYaoti",
+                "方正行楷", "FZXingKai", // 添加方正行楷
+                "等线", "DengXian", "等线 Light", "DengXian Light",
+                "兰亭黑", "Lantinghei SC", "汉仪旗黑", "HYQiHei",
+                "思源黑体", "Source Han Sans CN", "思源宋体", "Source Han Serif SC",
+                "文泉驿微米黑", "WenQuanYi Micro Hei", "文泉驿正黑", "WenQuanYi Zen Hei"
+            ];
+            
+            // 常见的英文字体
+            const englishFonts = [
+                "Arial", "Arial Black", "Arial Narrow", "Arial Unicode MS",
+                "Calibri", "Calibri Light", "Cambria", "Candara",
+                "Comic Sans MS", "Consolas", "Constantia", "Corbel",
+                "Courier", "Courier New", "Ebrima", "Franklin Gothic Medium",
+                "Gabriola", "Gadugi", "Georgia", "HoloLens MDL2 Assets",
+                "Impact", "Ink Free", "Javanese Text", "Leelawadee UI",
+                "Lucida Console", "Lucida Sans Unicode", "Malgun Gothic", "Marlett",
+                "Microsoft Himalaya", "Microsoft JhengHei", "Microsoft New Tai Lue", 
+                "Microsoft PhagsPa", "Microsoft Sans Serif", "Microsoft Tai Le",
+                "Microsoft YaHei", "Microsoft Yi Baiti", "MingLiU", "MingLiU-ExtB",
+                "Mongolian Baiti", "MS Gothic", "MS PGothic", "MS UI Gothic",
+                "MV Boli", "Myanmar Text", "Nirmala UI", "Palatino Linotype",
+                "PMingLiU", "PMingLiU-ExtB", "Segoe MDL2 Assets", "Segoe Print",
+                "Segoe Script", "Segoe UI", "Segoe UI Historic", "Segoe UI Emoji",
+                "Segoe UI Symbol", "SimSun", "SimSun-ExtB", "Sitka", "Sylfaen",
+                "Symbol", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana",
+                "Webdings", "Wingdings", "Wingdings 2", "Wingdings 3", "Yu Gothic"
+            ];
+            
+            // 合并字体列表
+            const allFonts = [...chineseFonts, ...englishFonts];
+            
+            // 检测可用字体
+            const available = [];
+            
+            // 添加默认字体
+            available.push("SimSun");
+            
+            // 检测其他字体
+            allFonts.forEach(font => {
+                if (isFontAvailable(font)) {
+                    available.push(font);
+                }
+            });
+            
+            // 去重并排序
+            return [...new Set(available)].sort((a, b) => a.localeCompare(b));
+        }
+        
+        // 渲染字体选项
+        function renderFontOptions(fonts) {
+            const fontOptions = document.getElementById('fontOptions');
+            fontOptions.innerHTML = '';
+            
+            fonts.forEach(font => {
+                const option = document.createElement('div');
+                option.className = 'font-option';
+                if (font === selectedFont) {
+                    option.classList.add('selected');
+                }
+                option.textContent = font;
+                option.style.fontFamily = `'${font}', sans-serif`;
+                
+                option.addEventListener('click', function() {
+                    selectFont(font);
+                });
+                
+                fontOptions.appendChild(option);
+            });
+        }
+        
+        // 选择字体
+        function selectFont(font) {
+            selectedFont = font;
+            document.getElementById('fontInput').value = font;
+            document.getElementById('fontDropdown').classList.remove('active');
+            
+            // 更新选中状态
+            const options = document.querySelectorAll('.font-option');
+            options.forEach(option => {
+                if (option.textContent === font) {
+                    option.classList.add('selected');
+                } else {
+                    option.classList.remove('selected');
+                }
+            });
+            
+            // 更新页面
+            updatePages();
+        }
+        
+        // 过滤字体
+        function filterFonts(searchTerm) {
+            if (!searchTerm) {
+                renderFontOptions(availableFonts);
+                return;
+            }
+            
+            const filtered = availableFonts.filter(font => 
+                font.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+            renderFontOptions(filtered);
+        }
+        
+        // 加载系统字体
+        function loadSystemFonts() {
+            // 显示加载中
+            document.getElementById('fontInput').value = '加载中...';
+            
+            // 获取系统字体
+            availableFonts = getSystemFonts();
+            
+            // 设置默认字体
+            document.getElementById('fontInput').value = selectedFont;
+            
+            // 渲染字体选项
+            renderFontOptions(availableFonts);
+        }
+        
+        // 页面加载完成后初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
